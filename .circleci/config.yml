@@ -71,7 +71,7 @@ jobs:
           docker push ${DOCKER_REGISTRY}/${DOCKER_GROUP_NAME}/${PROJECT_NAME}:${CI_COMMIT_TAG}
 
   helm_chart_build:
-    <<: *defaults
+    <<: *default
     steps:
       - checkout
       - run: |
