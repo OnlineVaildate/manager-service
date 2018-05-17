@@ -5,6 +5,7 @@ default: &default
 version: 2
 jobs:
   maven_test:
+    <<: *default
     working_directory: ~/repo
 
     environment:
@@ -120,4 +121,4 @@ workflows:
       - maven_test:
           filters:
             branches:
-              - /^.*$/
+              only: - /^.*$/
