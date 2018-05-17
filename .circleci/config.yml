@@ -1,0 +1,123 @@
+default: &default
+  docker:
+  - image: hand/devops-ci:1.1.0
+
+version: 2
+jobs:
+  maven_test:
+    working_directory: ~/repo
+
+    environment:
+      # Customize the JVM maximum heap limit
+      MAVEN_OPTS: -Xmx3200m
+    
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "pom.xml" }}
+          - v1-dependencies-
+      - run: mvn integration-test
+
+  maven_build:
+    <<: *default
+
+    working_directory: ~/repo
+
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+    
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "pom.xml" }}
+          - v1-dependencies-
+
+      - run: |
+          export CI_COMMIT_TAG=$(GetVersion)
+          mvn versions:set -DnewVersion=${CI_COMMIT_TAG} || \
+          find . -name pom.xml | xargs xml ed -L \
+            -N x=http://maven.apache.org/POM/4.0.0 \
+            -u '/x:project/x:version' -v "${CI_COMMIT_TAG}"
+          mvn versions:commit
+          mvn package -U -DskipTests=true
+          mvn --batch-mode verify sonar:sonar -Dsonar.host.url=${SONAR_URL}
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-dependencies-{{ checksum "pom.xml" }}
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/app.jar
+  
+  docker_build:
+    <<: *default
+    steps:
+      - setup_remote_docker:
+            version: 17.05.0-ce
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: |
+          export CI_COMMIT_TAG=$(GetVersion)
+          cp target/app.jar src/main/docker/app.jar
+          docker login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} ${DOCKER_REGISTRY}
+          docker build --pull -t ${DOCKER_REGISTRY}/${DOCKER_GROUP_NAME}/${PROJECT_NAME}:${CI_COMMIT_TAG} src/main/docker
+          docker push ${DOCKER_REGISTRY}/${DOCKER_GROUP_NAME}/${PROJECT_NAME}:${CI_COMMIT_TAG}
+
+  helm_chart_build:
+    <<: *defaults
+    steps:
+      - checkout
+      - run: |
+          export CI_COMMIT_TAG=$(GetVersion)
+          CHART_PATH=`find . -name Chart.yaml`
+          yq w -i ${CHART_PATH%/*}/values.yaml image.repository ${DOCKER_REGISTRY}/${DOCKER_GROUP_NAME}/${PROJECT_NAME}
+          yq w -i ${CHART_PATH%/*}/values.yaml image.tag ${CI_COMMIT_TAG}
+          helm repo add choerodon "${CHART_REPOSITORY}/${CHART_ORGANIZATION}/CHART_PROJECT/"
+          helm push ${CHART_PATH%/*} --version ${CI_COMMIT_TAG} choerodon
+
+workflows:
+  version: 2
+  release:
+    jobs:
+      - maven_build:
+          filters:
+            tags:
+              only: /^.*/
+            branches:
+              only:
+                - /^release-.*$/
+                - /^hotfix-.*$/
+      - docker_build:
+          requires:
+          - maven_build
+          filters:
+            tags:
+              only: /^.*/
+            branches:
+              only:
+                - /^release-.*$/
+                - /^hotfix-.*$/
+      - helm_chart_build:
+          requires:
+          - maven_build
+          - docker_build
+          filters:
+            tags:
+              only: /^.*/
+            branches:
+              only:
+                - /^release-.*$/
+                - /^hotfix-.*$/
+  daily:
+    jobs:
+      - maven_test:
+          filters:
+            branches:
+              - /^.*$/
