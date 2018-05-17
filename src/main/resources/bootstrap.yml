@@ -1,0 +1,44 @@
+spring:
+  profiles: default
+  cloud:
+    bus:
+      enabled: true
+  sleuth:
+    stream:
+      enabled: false
+hystrix:
+  stream:
+    queue:
+      enabled: false
+---
+spring:
+  profiles: sit,docker,staging
+---
+server:
+  port: 8963
+mybatis:
+  mapperLocations: classpath*:/mapper/*.xml
+  configuration:
+    mapUnderscoreToCamelCase: true
+spring:
+  application:
+    name: manager-service
+  cloud:
+    stream:
+      default-binder: kafka
+eureka:
+  instance:
+    preferIpAddress: true
+    leaseRenewalIntervalInSeconds: 1
+    leaseExpirationDurationInSeconds: 3
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8000/eureka/}
+management:
+  port: 8964
+  security:
+    enabled: false
+security:
+  basic:
+    enabled: false
+  ignored: /swagger-ui.html,/swagger-resources/**, /webjars/** , /docs/**, /v2/choerodon/api-docs
