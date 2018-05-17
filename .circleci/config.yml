@@ -81,7 +81,7 @@ jobs:
           CHART_PATH=`find . -name Chart.yaml`
           yq w -i ${CHART_PATH%/*}/values.yaml image.repository ${DOCKER_GROUP_NAME}/${PROJECT_NAME}
           yq w -i ${CHART_PATH%/*}/values.yaml image.tag ${CI_COMMIT_TAG}
-          helm repo add choerodon "${CHART_REPOSITORY}/${CHART_ORGANIZATION}/CHART_PROJECT/"
+          helm repo add choerodon "${CHART_REPOSITORY}/${CHART_ORGANIZATION}/${CHART_PROJECT}/"
           helm push ${CHART_PATH%/*} --version ${CI_COMMIT_TAG} choerodon
 
 workflows:
