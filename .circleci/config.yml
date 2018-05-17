@@ -121,4 +121,5 @@ workflows:
       - maven_test:
           filters:
             branches:
-              only: - /^.*$/
+              only: 
+               - /^.*$/
